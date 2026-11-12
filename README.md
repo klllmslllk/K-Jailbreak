@@ -60,6 +60,49 @@ LLM은 안전 정책을 우회하여 제한된 응답을 유도하는 Jailbreak 
 
 
 
+## 설치 및 실험 실행
+
+Python 3.10 이상과 Ollama가 필요합니다.
+
+```bash
+git clone https://github.com/klllmslllk/K-Jailbreak.git
+cd K-Jailbreak
+
+python -m venv .venv
+source .venv/bin/activate        # macOS / Linux (Bash, Zsh)
+.venv\Scripts\activate          # Windows CMD
+.\.venv\Scripts\Activate.ps1     # Windows PowerShell
+
+pip install -r requirements.txt
+```
+
+Ollama를 설치·실행한 뒤 모델을 다운로드합니다.
+
+```bash
+ollama pull qwen3:8b
+ollama pull llama3.1:8b
+ollama pull exaone3.5:7.8b
+```
+
+`Data/data.csv`로 새 실험을 시작합니다.
+
+```bash
+python main.py
+```
+
+화면에 출력되는 실험 ID(`run_id`)를 기록하세요. 응답은
+`results.db`에 저장되며, 실행할 때마다 새 실험 ID로 결과를 수집합니다.
+기존 실험 결과는 유지됩니다. 성공·실패 자동 판정은 수행하지 않으며 `success`는 `NULL`로 저장됩니다.
+
+API 호출이나 DB 저장 실패로 기록되지 않은 항목만 재시도하려면 다음과 같이 실행합니다.
+
+```bash
+python main.py --run-id 기존실험ID
+```
+
+데이터셋·모델·설정을 기존 실험과 동일하게 유지하세요. 해당 실험에서 이미 저장된 조합은 건너뜁니다.
+새 터미널에서는 가상환경을 다시 활성화해야 합니다. `results.db`는 Git 업로드에서 제외됩니다.
+
 ## 📊 평가 지표
 
 |지표|의미|해석|
