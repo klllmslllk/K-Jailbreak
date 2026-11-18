@@ -84,14 +84,14 @@ ollama pull llama3.1:8b
 ollama pull exaone3.5:7.8b
 ```
 
-`Data/data.csv`로 새 실험을 시작합니다.
+`datasets/data.csv`로 새 실험을 시작합니다.
 
 ```bash
 python main.py
 ```
 
 화면에 출력되는 실험 ID(`run_id`)를 기록하세요. 응답은
-`results.db`에 저장되며, 실행할 때마다 새 실험 ID로 결과를 수집합니다.
+`results/results.db`에 저장되며, 실행할 때마다 새 실험 ID로 결과를 수집합니다.
 기존 실험 결과는 유지됩니다. 성공·실패 자동 판정은 수행하지 않으며 `success`는 `NULL`로 저장됩니다.
 
 API 호출이나 DB 저장 실패로 기록되지 않은 항목만 재시도하려면 다음과 같이 실행합니다.
@@ -101,7 +101,48 @@ python main.py --run-id 기존실험ID
 ```
 
 데이터셋·모델·설정을 기존 실험과 동일하게 유지하세요. 해당 실험에서 이미 저장된 조합은 건너뜁니다.
-새 터미널에서는 가상환경을 다시 활성화해야 합니다. `results.db`는 Git 업로드에서 제외됩니다.
+새 터미널에서는 가상환경을 다시 활성화해야 합니다. `results/results.db`는 Git 업로드에서 제외됩니다.
+
+### 방어 모듈 적용
+
+현재 `combined_prompt` 시스템 프롬프트 방어 모듈을 선택할 수 있습니다. 이 모듈은 Self-Reminder, Goal Prioritization, 한국어 언어 변형 대응 지침을 결합하여 모델에 전달합니다. 방어 모듈은 응답을 직접 차단하거나 공격 성공 여부를 판정하지 않습니다.
+
+```bash
+python main.py --defense combined_prompt
+```
+
+`--defense` 뒤에는 방어 모듈 이름을 지정해야 합니다. 옵션을 생략하면 방어를 적용하지 않습니다. 방어를 적용한 실험을 재개할 때도 같은 방어 모듈을 지정합니다.
+
+```bash
+python main.py --run-id 기존실험ID --defense combined_prompt
+```
+
+같은 실험 ID로 다른 방어 설정을 사용하면 실행이 중단됩니다. 방어 모듈 이름은 결과의 `defense_module` 컬럼과 실험별 설정에 저장되며, 방어를 적용하지 않으면 `NULL`로 저장됩니다. 이전 결과 중 방어 설정이 기록되지 않은 항목도 `NULL`이므로 이 값만으로 과거 방어 적용 여부를 확정할 수 없습니다.
+
+### 모델에 전달되는 메시지 확인
+
+`--show-prompt`를 추가하면 각 요청에서 Ollama에 전달할 메시지를 역할별로 출력합니다.
+
+```bash
+python main.py --defense combined_prompt --show-prompt
+```
+
+방어 없이 확인할 때는 `python main.py --show-prompt`를 사용합니다. 메시지 출력 후에도 모델 호출과 결과 저장이 진행됩니다.
+
+### 현재 구현 구조
+
+```text
+main.py                              # 실행 옵션 처리
+config.py                            # 모델, 경로 및 실험 설정
+runner.py                            # 데이터 로드 및 실험 실행
+models/ollama_client.py              # Ollama API 호출
+defenses/prompt/combined_prompt.py   # 결합형 시스템 프롬프트 방어
+database/db.py                       # SQLite 연결 및 결과 저장
+datasets/data.csv                    # 실험 데이터
+results/results.db                   # 로컬 실험 결과
+```
+
+현재 구현은 모델 응답 수집과 방어 프롬프트 적용까지 지원합니다. 성공 여부 판정, 지표 계산 및 웹 대시보드는 향후 구현할 기능입니다.
 
 ## 📊 평가 지표
 
