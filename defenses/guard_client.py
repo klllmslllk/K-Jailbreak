@@ -30,10 +30,10 @@ def parse_response(raw):
     if verdict == "safe" and remainder:
         raise ValueError("Unexpected content after safe verdict")
     if remainder and not re.fullmatch(
-        r"S(?:[1-9]|1[0-3])(?:\s*[,\s]\s*S(?:[1-9]|1[0-3]))*", remainder
+        r"S(?:[1-9]|1[0-4])(?:\s*[,\s]\s*S(?:[1-9]|1[0-4]))*", remainder
     ):
         raise ValueError("Invalid Guard categories")
-    categories = tuple(re.findall(r"S(?:1[0-3]|[1-9])", remainder))
+    categories = tuple(re.findall(r"S(?:1[0-4]|[1-9])", remainder))
     return GuardResult(verdict, categories, raw)
 
 
