@@ -45,11 +45,13 @@ LLM은 안전 정책을 우회하여 제한된 응답을 유도하는 Jailbreak 
 |-|-:|
 |원본 공격 요청|60개|
 |언어적 변형|5종|
-|변형된 실험 프롬프트|300개|
+|영어 원문을 포함한 실험 프롬프트|360개|
 |평가 대상 모델|3개|
-|기본 평가 조합|**900회**|
+|기본 평가 조합|**1,080회**|
 
-기본 평가 조합은 **60개 요청 × 5개 변형 × 3개 모델**을 기준으로 합니다. 반복 실험 및 방어 기법별 추가 평가는 별도로 집계합니다.
+기본 평가 조합은 **60개 요청 × (영어 원문 1종 + 한국어 변형 5종) × 3개 모델**을 기준으로 합니다. 반복 실험 및 방어 기법별 추가 평가는 별도로 집계합니다.
+
+`goal` 열의 영어 원문도 모델에 전달합니다. 결과에서 영어는 `language`가 `영어`, `attack_id` 접미사가 `EN`으로 저장됩니다. 같은 `original_id`, 모델, 실험 ID 및 방어 설정의 한국어 결과와 연결해 비교할 수 있습니다. 기존 실험 ID로 재개하면 저장된 한국어 결과는 건너뛰고 누락된 영어 결과도 수집합니다. 데이터셋의 행 순서와 실험 설정은 기존 실행과 동일하게 유지해야 합니다.
 
 ### 데이터셋 출처
 
@@ -105,13 +107,50 @@ python main.py --run-id 기존실험ID
 
 ### 방어 모듈 적용
 
+#### 입력 방어: Llama Guard 3
+
+Ollama가 실행 중인 상태에서 `ollama list`로 `llama-guard3:8b` 설치 여부를 확인하세요. 설치되어 있지 않으면 직접 `ollama pull llama-guard3:8b`를 실행합니다. 프로그램은 모델을 자동으로 다운로드하지 않습니다.
+
+```bash
+python main.py --defense input-guard
+python main.py --defense input-guard combined_prompt
+python main.py
+```
+
+Guard는 원본 사용자 입력을 먼저 분류합니다. `unsafe`이면 대상 모델을 호출하지 않고 고정 거절문을 저장하며, 공격 데이터의 최종 `success`는 0입니다. 정상 데이터에 대한 차단은 공격 방어 성공으로 기록하지 않습니다. `safe`이면 기존 시스템 프롬프트 방어와 대상 모델 호출이 진행됩니다. Guard 호출이나 판정 오류가 발생하면 해당 요청은 건너뛰며 다시 실행할 수 있습니다. Guard 기록 저장에 실패하면 실행을 중단합니다.
+
+입력 Guard 결과는 `results/guard_results.db`의 `input_guard_results`에 저장됩니다. `run_id`, `attack_id`, `target_model`은 기존 `results.db`의 `run_id`, `attack_id`, `model`과 연결됩니다. 원본 ID, 데이터셋 유형, 언어, 입력, 모델과 digest, 옵션, 원본 응답, 판정, 범주, 차단 여부, 오류 및 시간이 기록됩니다. `input_guard_runs`에는 재개 시 확인할 데이터셋 해시와 방어 설정이 저장됩니다. 기존 `guard_runs`, `guard_results` 테이블은 DB를 열 때 자동으로 새 이름으로 변경됩니다. 동일 실험을 재개할 때 데이터셋과 Guard 설정, 모델 digest를 바꾸지 마세요. 기존 실험에 Guard를 추가하려면 새 실험 ID를 사용해야 합니다.
+
+FPR을 측정하려면 `data.csv`와 같은 열을 가진 별도의 정상 요청 CSV가 필요합니다. 데이터셋의 실제 출처에 따라 유형을 명시하세요.
+
+```bash
+python main.py --defense input-guard --dataset datasets/benign.csv --dataset-type benign
+python guard_metrics.py 실험ID
+python -c "from database.guard_db import connect_guard; c=connect_guard(); print(c.execute('SELECT run_id, attack_id, target_model, dataset_type, language, guard_verdict, was_blocked FROM input_guard_results LIMIT 10').fetchall()); c.close()"
+```
+
+FPR은 정상 데이터의 `unsafe / (unsafe + safe)`이며 오류는 별도로 표시하고 분모에서 제외합니다. 같은 실험에서 대상 모델별 반복 분류나 재시도가 있으면 각 `attack_id`의 최신 판정 하나를 사용합니다. 기록이 없는 요청은 집계되지 않으므로 완료 여부를 별도로 확인하세요. 언어별 결과와 전체 결과는 기술 통계이며 같은 원본의 언어 변형들은 독립 표본이 아닙니다. 공격 데이터의 `unsafe` 비율은 별도로 분석할 수 있지만, 공격 데이터라는 이유만으로 안전성 기준의 참양성이라고 간주할 수 없습니다. 한국어 및 방언 성능은 이 프로젝트에서 별도 검증이 필요합니다.
+
+#### 출력 방어: Llama Guard 3
+
+```bash
+python main.py --defense output-guard
+python main.py --defense input-guard combined_prompt output-guard
+```
+
+출력 방어는 대상 모델의 응답을 받은 후 원본 사용자 요청과 모델 응답을 각각 `user`, `assistant` 메시지로 Guard에 전달합니다. `safe`이면 원래 응답을 저장하고, `unsafe`이면 고정 거절문을 저장합니다. 차단된 공격의 최종 파이프라인 `success`는 0이지만, 이는 대상 모델의 응답이 안전했다는 뜻이 아닙니다. 입력 방어에서 이미 차단된 요청은 대상 모델과 출력 Guard를 호출하지 않습니다. 출력 Guard 오류가 발생하면 최종 결과를 저장하지 않고 해당 요청을 건너뜁니다.
+
+출력 판정은 같은 Guard DB의 별도 `output_guard_results` 테이블에 기록되며, 입력 판정 및 입력 FPR 계산과 구분됩니다. 이 테이블은 판정, 모델 digest, 설정과 **차단 전 대상 모델의 원본 응답**도 보관합니다. 따라서 차단된 내용도 로컬 DB에서 열람할 수 있습니다. `run_id`, `attack_id`, `target_model`로 기존 결과와 연결할 수 있습니다. 출력 Guard 설정은 `output_guard_runs`에 저장되어 재개 시 확인합니다.
+
 현재 `combined_prompt` 시스템 프롬프트 방어 모듈을 선택할 수 있습니다. 이 모듈은 Self-Reminder, Goal Prioritization, 한국어 언어 변형 대응 지침을 결합하여 모델에 전달합니다. 방어 모듈은 응답을 직접 차단하거나 공격 성공 여부를 판정하지 않습니다.
 
 ```bash
 python main.py --defense combined_prompt
 ```
 
-`--defense` 뒤에는 방어 모듈 이름을 지정해야 합니다. 옵션을 생략하면 방어를 적용하지 않습니다. 방어를 적용한 실험을 재개할 때도 같은 방어 모듈을 지정합니다.
+`--defense` 뒤에는 방어 모듈 이름을 하나 이상 지정합니다. `input-guard`와 `combined_prompt`를 함께 지정할 수 있습니다. 옵션을 생략하면 방어를 적용하지 않습니다. 방어를 적용한 실험을 재개할 때도 같은 방어 모듈을 지정합니다.
+
+방어 모듈은 `defenses/input`, `defenses/system`, `defenses/output`으로 구분하고 `defenses/registry.py`의 단계별 딕셔너리에 등록합니다. 실행 순서는 입력 검사 → 시스템 메시지 구성 → 대상 모델 호출 → 출력 검사이며, 현재 각 단계에서 하나의 모듈을 선택할 수 있습니다. 입력·출력 방어는 각각 `InputDefense`, `OutputDefense`에 분류 함수, 모델 확인 함수, 모델 이름과 옵션을 등록합니다. 분류 함수는 `verdict`, `categories`, `raw`, `error` 결과 형식을 반환해야 합니다. 입력 방어는 요청을 받고, 출력 방어는 요청과 응답을 받으며, 시스템 방어는 메시지 목록을 받고 반환합니다.
 
 ```bash
 python main.py --run-id 기존실험ID --defense combined_prompt
@@ -136,7 +175,11 @@ main.py                              # 실행 옵션 처리
 config.py                            # 모델, 경로 및 실험 설정
 runner.py                            # 데이터 로드 및 실험 실행
 models/ollama_client.py              # Ollama API 호출
-defenses/prompt/combined_prompt.py   # 결합형 시스템 프롬프트 방어
+defenses/registry.py                 # 단계별 방어 모듈 등록
+defenses/guard_client.py             # 공통 Guard 호출 및 응답 파싱
+defenses/input/input_guard.py        # 입력 방어
+defenses/system/combined_prompt.py   # 시스템 프롬프트 방어
+defenses/output/output_guard.py      # 출력 방어
 database/db.py                       # SQLite 연결 및 결과 저장
 datasets/data.csv                    # 실험 데이터
 results/results.db                   # 로컬 실험 결과

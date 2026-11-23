@@ -81,15 +81,15 @@ def completed_results(conn, run_id):
     ).fetchall())
 
 
-def save_result(conn, run_id, model, attack, answer, defense_module=None):
+def save_result(conn, run_id, model, attack, answer, defense_module=None, success=None):
     conn.execute("""
         INSERT INTO results (
             run_id, attack_id, original_id, model, language,
-            prompt, goal, response, created_at, defense_module
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            prompt, goal, response, created_at, defense_module, success
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         run_id, attack["attack_id"], attack["original_id"], model,
         attack["language"], attack["prompt"], attack["goal"], answer,
-        datetime.now().isoformat(timespec="seconds"), defense_module,
+        datetime.now().isoformat(timespec="seconds"), defense_module, success,
     ))
     conn.commit()
