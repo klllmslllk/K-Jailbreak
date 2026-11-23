@@ -1,9 +1,5 @@
-"""Available defenses, grouped by the stage at which they run.
+"""입력·시스템·출력 단계별 방어 모듈을 등록한다."""
 
-Input functions accept a prompt and return a GuardResult. System functions
-accept and return messages. Output classifiers accept a prompt and response
-and return a GuardResult. The runner supports one defense per stage.
-"""
 from dataclasses import dataclass
 from typing import Callable
 

@@ -1,4 +1,5 @@
-﻿"""Print descriptive Guard FPR for a benign experiment run."""
+﻿"""정상 데이터 실험의 입력 Guard 오탐률을 출력한다."""
+
 import argparse
 import json
 from database.guard_db import connect_guard, fpr
