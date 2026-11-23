@@ -1,3 +1,5 @@
+"""모델, 데이터 경로와 실험 설정을 정의한다."""
+
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
