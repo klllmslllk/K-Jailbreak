@@ -94,6 +94,6 @@ def run(source_path, output_path, guard_path, run_id=None, limit=None,
                 counts["completed" if result.status == "ok" else "failed"] += 1
                 detail = (result.metadata.get("label") if result.status == "ok" else result.error)
                 print(f"[{index}/{len(rows)}] result {row['id']}: {result.status} {detail}", flush=True)
-            for item in summary(dest, config_hash, None, run_id):
+            for item in summary(dest, config_hash, run_id):
                 print(f"Historical ASR {item['target_model']} / {item['language']} / {item['defense_module']} / {item['source_run_id']}: {item['successes']}/{item['valid']} = {item['successes']/item['valid']:.3f}")
         return counts
